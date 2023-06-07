@@ -1,5 +1,5 @@
 
-![CDK Serveless]((https://miro.medium.com/v2/resize:fit:828/format:webp/1*WdHRG3BIBTbwQT4iZnsm_w.png))
+![CDK Serveless](https://miro.medium.com/v2/resize:fit:828/format:webp/1*WdHRG3BIBTbwQT4iZnsm_w.png)
 
 # Welcome to your CDK TypeScript project
 
