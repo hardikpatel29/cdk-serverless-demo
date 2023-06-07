@@ -31,6 +31,7 @@ export class CdkServerlessDemoStack extends cdk.Stack {
     //S3 bucket
     const mydemos3 = new s3.Bucket(this,"mydemos3bucketid",{
       bucketName:`mydemos-${suffix}`,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     })
     
     // policy
@@ -47,6 +48,7 @@ export class CdkServerlessDemoStack extends cdk.Stack {
     },
     );
     
+
 
     const dynamodbaccess = new iam.PolicyStatement({
       actions: [
