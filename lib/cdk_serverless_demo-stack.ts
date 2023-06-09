@@ -6,7 +6,9 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import { Stage, Deployment} from 'aws-cdk-lib/aws-apigateway';
+import { Stage, Deployment, MethodOptions} from 'aws-cdk-lib/aws-apigateway';
+import { AuthorizationType } from 'aws-cdk-lib/aws-apigateway';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { ICdkServerlessProps } from '../bin/config-types';
@@ -117,6 +119,174 @@ export class CdkServerlessDemoStack extends cdk.Stack {
       }),
       
      })
+ 
+    // cognito
+
+    const userpool = new cognito.UserPool(this, 'my-user-pool', {
+      userPoolName: props.userpool.name,
+      signInAliases: {
+        email: true,
+      },
+      selfSignUpEnabled: true,
+      autoVerify: {
+        email: true,
+      },
+      userVerification: {
+        emailSubject: props.userpool.emailSubject,
+        emailBody: props.userpool.emailBody, // # This placeholder is a must if code is selected as preferred verification method
+        emailStyle: cognito.VerificationEmailStyle.CODE,
+      },
+      standardAttributes: {
+        familyName: {
+          mutable: false,
+          required: true,
+        },
+        address: {
+          mutable: true,
+          required: false,
+        },
+      },
+      customAttributes: {
+        'tenantId': new cognito.StringAttribute({
+          mutable: false,
+          minLen: 10,
+          maxLen: 15,
+        }),
+        'createdAt': new cognito.DateTimeAttribute(),
+        'employeeId': new cognito.NumberAttribute({
+          mutable: false,
+          min: 1,
+          max: 100,
+        }),
+        'isAdmin': new cognito.BooleanAttribute({
+          mutable: false,
+        }),
+      },
+      passwordPolicy: {
+        minLength: props.userpool.passwordLength,
+        requireLowercase: true,
+        requireUppercase: true,
+        requireDigits: true,
+        requireSymbols: false,
+      },
+      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    const appClient = userpool.addClient('my-app-client', {
+      userPoolClientName: props.userpool.userpoolclientName,
+      generateSecret: true,
+      authFlows: {
+        adminUserPassword: true,
+        userPassword: true,
+        userSrp: true
+      },
+      oAuth: {
+        flows: {
+          //clientCredentials: true,   // server-to-server authentication
+
+          authorizationCodeGrant: true,  // user auth
+          implicitCodeGrant: true  //user authentication
+        },
+        scopes: [
+          cognito.OAuthScope.OPENID,
+          cognito.OAuthScope.EMAIL,
+          cognito.OAuthScope.PHONE,
+          cognito.OAuthScope.COGNITO_ADMIN
+        ]
+      },
+      preventUserExistenceErrors: true
+    });
+
+
+    const adminRole = new iam.Role(this, 'AdminRole', {
+      assumedBy: new iam.FederatedPrincipal(
+        'cognito-identity.amazonaws.com',
+        {
+          StringEquals: {
+            'cognito-identity.amazonaws.com:aud': userpool.userPoolId,
+          },
+          'ForAnyValue:StringLike': {
+            'cognito-identity.amazonaws.com:amr': 'authenticated',
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity',
+      ),
+    });
+
+    
+    adminRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'cognito-identity:GetCredentialsForIdentity',
+          'cognito-identity:GetId',
+          'cognito-identity:GetOpenIdToken',
+        ],
+        resources: ['*'],
+      }),
+    );
+
+
+    const authenticatedRole = new iam.Role(this, 'AuthenticatedRole', {
+      assumedBy: new iam.FederatedPrincipal(
+        'cognito-identity.amazonaws.com',
+        {
+          StringEquals: {
+            'cognito-identity.amazonaws.com:aud': userpool.userPoolId,
+          },
+          'ForAnyValue:StringLike': {
+            'cognito-identity.amazonaws.com:amr': 'authenticated',
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity',
+      ),
+    });
+
+    const unauthenticatedRole = new iam.Role(this, 'UnauthenticatedRole', {
+      assumedBy: new iam.FederatedPrincipal(
+        'cognito-identity.amazonaws.com',
+        {
+          StringEquals: {
+            'cognito-identity.amazonaws.com:aud': userpool.userPoolId,
+          },
+          'ForAnyValue:StringLike': {
+            'cognito-identity.amazonaws.com:amr': 'unauthenticated',
+          },
+        },
+        'sts:AssumeRoleWithWebIdentity',
+      ),
+    });
+
+
+    const identityPool = new cognito.CfnIdentityPool(this, 'IdentityPool', {
+      identityPoolName: props.userpool.identitypoolname,
+      allowUnauthenticatedIdentities: false,
+      cognitoIdentityProviders: [
+        {
+          clientId: appClient.userPoolClientId,
+          providerName: userpool.userPoolProviderName
+        }
+      ]
+    });
+
+
+    new cognito.CfnIdentityPoolRoleAttachment(this, 'IdentityPoolRoles', {
+      identityPoolId: identityPool.ref,
+      roles: {
+        authenticated: authenticatedRole.roleArn,
+        unauthenticated: unauthenticatedRole.roleArn,
+      },
+      roleMappings: {
+        adminsMapping: {
+            type: 'Token',
+            ambiguousRoleResolution: 'AuthenticatedRole',
+            identityProvider: `${userpool.userPoolProviderName}:${appClient.userPoolClientId}`
+        }
+    }
+    });
+    
+
 
 
 
@@ -156,10 +326,30 @@ export class CdkServerlessDemoStack extends cdk.Stack {
       }
     });
 
+
+    const authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuthorizer', {
+      cognitoUserPools: [userpool],
+      authorizerName: 'CognitoAuthorizer',
+      identitySource: 'method.request.header.Authorization'
+    });
+
+    authorizer._attachToApi(myapi);
+
+    const cognitoAuth: MethodOptions = {
+      authorizationType: AuthorizationType.COGNITO,
+      authorizer: {
+          authorizerId: authorizer.authorizerId
+      }
+    }
+
           
     const rootResource = myapi.root.addResource(props.api.rootResource);
     const resource =  rootResource.addResource('mydemoapp');
-    resource.addMethod('GET', integration);
+    resource.addMethod('GET', integration, cognitoAuth);
+
+    resource.addMethod('POST', integration, {
+      apiKeyRequired: true,
+    });
 
     const usageplan = myapi.addUsagePlan('UsagePlan', {
       name: props.usageplan.name,

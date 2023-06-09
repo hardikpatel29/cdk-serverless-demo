@@ -42,6 +42,15 @@ const environmentConfig: ICdkServerlessProps = {
   cloudwatch: {
     evaluationPeriods: 1,
     threshold: 1
+  },
+  userpool: {
+    name: 'mydemouserpool',
+    emailSubject: 'Test Subject',
+    emailBody: 'test email Body{####}',
+    userpoolclientName: 'myclientpool',
+    passwordLength: 10,
+    identitypoolname: 'myidentitypool'
+
   }
   
 };

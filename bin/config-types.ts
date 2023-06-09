@@ -33,6 +33,15 @@ export interface ICdkServerlessProps extends StackProps {
     region: string,
     //account: number,
   },
+  userpool: {
+    name: string,
+    emailSubject: string,
+    emailBody: string,
+    userpoolclientName: string,
+    passwordLength: number,
+    identitypoolname: string
+
+  },
   cloudwatch: {
     evaluationPeriods: number,
     threshold: number
