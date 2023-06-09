@@ -25,6 +25,10 @@ export interface ICdkServerlessProps extends StackProps {
     name: string,
     desc: string,
   },
+  devapiKey: {
+    name: string,
+    desc: string,
+  },
   env: {
     region: string,
     //account: number,

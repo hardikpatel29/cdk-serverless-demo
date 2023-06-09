@@ -6,6 +6,9 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
+import { Stage, Deployment} from 'aws-cdk-lib/aws-apigateway';
+import * as logs from 'aws-cdk-lib/aws-logs';
+import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { ICdkServerlessProps } from '../bin/config-types';
 import { getSuffixFromStack } from "./Utils";
 
@@ -119,6 +122,12 @@ export class CdkServerlessDemoStack extends cdk.Stack {
 
     // MyRestApiGW
 
+    
+    const prodLogGroup = new logs.LogGroup(this, 'ProdLogGroup', {
+      logGroupName: '/aws/api-gateway/MyRestAPI/prod',
+      retention: RetentionDays.INFINITE,
+    });
+
     const myapi = new apigateway.RestApi(this, 'MyRestAPI', {
       restApiName: props.api.name,
       description: props.api.desc,
@@ -126,19 +135,31 @@ export class CdkServerlessDemoStack extends cdk.Stack {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: ['GET', 'POST', 'PATCH', 'DELETE']
       },
+      cloudWatchRole: true,
+      deploy: true,
+      deployOptions: {
+        stageName: 'prod',
+        accessLogDestination: new apigateway.LogGroupLogDestination(prodLogGroup),
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
+        dataTraceEnabled: true,
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields({
+          caller: false,
+          httpMethod: true,
+          ip: true,
+          protocol: true,
+          requestTime: true,
+          resourcePath: true,
+          responseLength: true,
+          status: true,
+          user: true,
+        }),
+      }
     });
 
-    // Add Resource and Methods ApiGW
-
+          
     const rootResource = myapi.root.addResource(props.api.rootResource);
-
     const resource =  rootResource.addResource('mydemoapp');
-
     resource.addMethod('GET', integration);
-
-
-    // UsagePlan ApiGW
-
 
     const usageplan = myapi.addUsagePlan('UsagePlan', {
       name: props.usageplan.name,
@@ -157,16 +178,68 @@ export class CdkServerlessDemoStack extends cdk.Stack {
       },
     });
 
-
-
-    // Api Key
-
     const apiKey = myapi.addApiKey('myApiKey', {
       apiKeyName: props.apiKey.name,
       description: props.apiKey.desc,
     });
     
     usageplan.addApiKey(apiKey);
+
+
+    // DEV Stage & Usage Plan
+
+    const devLogGroup = new logs.LogGroup(this, 'devLogGroup', {
+      logGroupName: '/aws/api-gateway/MyRestAPI/Dev',
+      retention: RetentionDays.THREE_MONTHS,
+    });
+
+    const devStage = new Stage(this, 'DevStage', {
+      stageName: 'dev',
+      deployment: new Deployment(this, 'DevDeployment', {
+        api: myapi,
+      }),
+      accessLogDestination: new apigateway.LogGroupLogDestination(devLogGroup),
+      accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields({
+        caller: false,
+        httpMethod: true,
+        ip: true,
+        protocol: true,
+        requestTime: true,
+        resourcePath: true,
+        responseLength: true,
+        status: true,
+        user: true,
+      }),
+    });
+
+    const devUsagePlan = myapi.addUsagePlan('DevUsagePlan', {
+      name: 'Dev Usage Plan',
+      description: 'Usage plan for the dev stage',
+      apiStages: [
+        {
+          stage: devStage,
+          api: myapi,
+        },
+      ],
+      quota: {
+        limit: props.usageplan.limit,
+        period: apigateway.Period.DAY,
+      },
+      throttle: {
+        rateLimit: props.usageplan.rateLimit,
+        burstLimit: props.usageplan.burstLimit,
+      },
+    });
+
+
+    const DevapiKey = myapi.addApiKey('mydevApiKey', {
+      apiKeyName: props.devapiKey.name,
+      description: props.devapiKey.desc,
+    });
+
+    
+    
+    devUsagePlan.addApiKey(DevapiKey);
 
 
 

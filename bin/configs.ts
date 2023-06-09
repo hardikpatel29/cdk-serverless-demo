@@ -29,6 +29,10 @@ const environmentConfig: ICdkServerlessProps = {
     name: 'MyApiKey',
     desc: 'Api Key used for Api Gateway',
   },
+  devapiKey: {
+    name: 'DevAPI',
+    desc: 'Dev API GW',
+  },
   env: {
 
     //region: 'process.env.CDK_DEFAULT_REGION'
