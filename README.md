@@ -1,5 +1,5 @@
 
-![CDK Serveless](https://miro.medium.com/v2/resize:fit:828/format:webp/1*WdHRG3BIBTbwQT4iZnsm_w.png)
+![CDK Serveless](https://caxsol-crud-apis.s3.amazonaws.com/serverless.jpg)
 
 # Welcome to your CDK TypeScript project
 
