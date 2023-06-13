@@ -45,5 +45,9 @@ export interface ICdkServerlessProps extends StackProps {
   cloudwatch: {
     evaluationPeriods: number,
     threshold: number
+  },
+  sns: {
+    name : string,
+    email: string
   }
 }

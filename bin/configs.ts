@@ -36,7 +36,7 @@ const environmentConfig: ICdkServerlessProps = {
   env: {
 
     //region: 'process.env.CDK_DEFAULT_REGION'
-    region: 'us-east-2',
+    region: 'eu-west-1',
     //account: process.env.CDK_DEFAULT_ACCOUNT,
   },
   cloudwatch: {
@@ -51,6 +51,10 @@ const environmentConfig: ICdkServerlessProps = {
     passwordLength: 10,
     identitypoolname: 'myidentitypool'
 
+  },
+  sns: {
+    name : 'myTopic',
+    email: 'net.patel.hardik@mhp.com'
   }
   
 };

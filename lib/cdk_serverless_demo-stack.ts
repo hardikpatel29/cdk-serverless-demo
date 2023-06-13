@@ -5,6 +5,9 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as cloudwatchActions from 'aws-cdk-lib/aws-cloudwatch-actions';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Stage, Deployment, MethodOptions} from 'aws-cdk-lib/aws-apigateway';
 import { AuthorizationType } from 'aws-cdk-lib/aws-apigateway';
@@ -119,6 +122,17 @@ export class CdkServerlessDemoStack extends cdk.Stack {
       }),
       
      })
+
+    // SNS for Alarm
+
+    const errorTopic = new sns.Topic(this, 'ErrorTopic', {
+      displayName: props.sns.name,
+    });
+
+    errorTopic.addSubscription(new subscriptions.EmailSubscription(props.sns.email));
+
+
+    lambdaerror.addAlarmAction(new cloudwatchActions.SnsAction(errorTopic));
  
     // cognito
 
